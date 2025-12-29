@@ -1,587 +1,697 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  LayoutDashboard, 
-  ListOrdered, 
-  PlusSquare, 
-  Users, 
-  Settings, 
-  Download, 
-  Upload, 
-  AlertCircle, 
-  ChevronRight,
-  Search,
-  Calendar,
-  Wallet,
-  Clock,
-  LogOut,
-  User,
-  Trash2,
-  Edit3,
-  X,
-  TrendingUp,
-  PieChart as PieIcon
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>HBC-BORS 湖北银行开门红业绩系统</title>
+    <!-- 核心库 -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        :root {
+            --apple-red: #FF3B30;
+            --apple-bg: #F5F5F7;
+            --apple-card: #FFFFFF;
+            --apple-text: #1D1D1F;
+            --apple-gray: #86868B;
+            --apple-sep: #E5E5EA;
+            --safe-bottom: env(safe-area-inset-bottom);
+            --border-radius: 32px;
+        }
 
-// --- 配置与选项 ---
-const SOURCES = ["发单新客", "存量客户", "小红书客户", "资源客户"];
-const B_TYPES = [
-  "1年定期存款", "2年定期存款", "3年定期存款", "5年定期存款",
-  "理财", "1天通知存款", "7天通知存款", 
-  "湖银秒贷", "白领快贷", "个人住房按揭贷款"
-];
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial, sans-serif;
+        }
 
-const App = () => {
-  // --- 状态管理 ---
-  const [currentUser, setCurrentUser] = useState(null);
-  const [authMode, setAuthMode] = useState('login'); // 'login' | 'register'
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [customers, setCustomers] = useState([]);
-  const [transactions, setTransactions] = useState([]);
-  const [users, setUsers] = useState([]); // 存储已注册账号
-  
-  // 弹窗状态
-  const [modal, setModal] = useState({ type: null, data: null }); // type: 'editTx' | 'editCust' | 'confirmDeleteTx' | 'confirmDeleteCust'
+        body {
+            background-color: var(--apple-bg);
+            color: var(--apple-text);
+            line-height: 1.4;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+        }
 
-  // 表单状态
-  const [authForm, setAuthForm] = useState({ empId: '', name: '', password: '' });
-  const [formData, setFormData] = useState({ customerId: '', bType: '1年定期存款', amount: '', date: new Date().toISOString().split('T')[0], note: '' });
-  const [custForm, setCustForm] = useState({ name: '', phone: '', custId: '', source: '发单新客' });
+        /* --- 动画 --- */
+        @keyframes rippleWave {
+            0% { background-position: 0% 0%; }
+            50% { background-position: 100% 100%; }
+            100% { background-position: 0% 0%; }
+        }
+        @keyframes colorfulGradient {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
 
-  // --- 初始化与持久化 ---
-  useEffect(() => {
-    const storedUsers = localStorage.getItem('bors_users');
-    const storedCusts = localStorage.getItem('bors_customers');
-    const storedTxs = localStorage.getItem('bors_transactions');
-    const storedSession = localStorage.getItem('bors_session');
+        /* --- 登录界面 --- */
+        #auth-screen {
+            position: fixed;
+            inset: 0;
+            z-index: 2000;
+            background: radial-gradient(circle at top left, #4facfe 0%, #00f2fe 30%, #a8edea 60%, #fed6e3 100%);
+            background-size: 200% 200%;
+            animation: rippleWave 10s ease-in-out infinite;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            transition: transform 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+        }
 
-    if (storedUsers) setUsers(JSON.parse(storedUsers));
-    if (storedCusts) setCustomers(JSON.parse(storedCusts));
-    if (storedTxs) setTransactions(JSON.parse(storedTxs));
-    if (storedSession) setCurrentUser(JSON.parse(storedSession));
-  }, []);
+        .auth-card {
+            width: 100%;
+            max-width: 360px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.25);
+            backdrop-filter: blur(25px);
+            padding: 40px 30px;
+            border-radius: var(--border-radius);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.1);
+        }
 
-  useEffect(() => {
-    localStorage.setItem('bors_users', JSON.stringify(users));
-    localStorage.setItem('bors_customers', JSON.stringify(customers));
-    localStorage.setItem('bors_transactions', JSON.stringify(transactions));
-  }, [users, customers, transactions]);
+        /* --- 主架构 --- */
+        header {
+            position: sticky;
+            top: 0;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: saturate(180%) blur(20px);
+            z-index: 1000;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.5px solid var(--apple-sep);
+        }
 
-  // --- 用户功能 ---
-  const handleRegister = () => {
-    if (!authForm.empId || !authForm.name || !authForm.password) return alert('请填写完整信息');
-    if (users.find(u => u.empId === authForm.empId)) return alert('该工号已注册');
-    const newUsers = [...users, { ...authForm }];
-    setUsers(newUsers);
-    setAuthMode('login');
-    alert('注册成功，请登录');
-  };
+        .screen {
+            display: none;
+            padding: 20px;
+            padding-bottom: 120px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .screen.active { display: block; animation: slideUp 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
 
-  const handleLogin = () => {
-    const user = users.find(u => u.empId === authForm.empId && u.name === authForm.name && u.password === authForm.password);
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem('bors_session', JSON.stringify(user));
-    } else {
-      alert('工号、姓名或密码错误');
-    }
-  };
+        .card {
+            background: var(--apple-card);
+            border-radius: var(--border-radius);
+            padding: 24px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+            border: 0.5px solid rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+        }
+        .card:active { transform: scale(0.98); }
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem('bors_session');
-  };
+        .colorful-card {
+            background: linear-gradient(-45deg, #FF3CAC, #784BA0, #2B86C5, #00DBDE);
+            background-size: 400% 400%;
+            animation: colorfulGradient 8s ease infinite;
+            color: white !important;
+            border: none;
+        }
+        .colorful-card input, .colorful-card select {
+            background: rgba(255, 255, 255, 0.2) !important;
+            border: none !important;
+            color: white !important;
+        }
 
-  // --- CRUD 功能 ---
-  const deleteTransaction = (id) => {
-    setTransactions(transactions.filter(t => t.id !== id));
-    setModal({ type: null, data: null });
-  };
+        input, select, textarea {
+            width: 100%;
+            padding: 14px 16px;
+            background: #F2F2F7;
+            border: 1.5px solid transparent;
+            border-radius: 16px;
+            font-size: 16px;
+            outline: none;
+        }
 
-  const updateTransaction = (updatedTx) => {
-    setTransactions(transactions.map(t => t.id === updatedTx.id ? updatedTx : t));
-    setModal({ type: null, data: null });
-  };
+        /* 悬浮通知 */
+        #notification-fab {
+            position: fixed;
+            right: 24px;
+            bottom: 108px;
+            width: 60px;
+            height: 60px;
+            background: var(--apple-red);
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 8px 24px rgba(255, 59, 48, 0.3);
+            z-index: 1000;
+            cursor: pointer;
+        }
+        .badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            background: white;
+            color: var(--apple-red);
+            font-size: 12px;
+            font-weight: 800;
+            width: 22px;
+            height: 22px;
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 2px solid var(--apple-red);
+        }
 
-  const deleteCustomer = (id) => {
-    setCustomers(customers.filter(c => c.id !== id));
-    setTransactions(transactions.filter(t => t.customerId !== id)); // 联动删除该客户业务
-    setModal({ type: null, data: null });
-  };
+        /* 底部导航 */
+        nav.bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 84px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(25px);
+            border-top: 0.5px solid var(--apple-sep);
+            display: flex;
+            justify-content: space-around;
+            padding-bottom: var(--safe-bottom);
+            z-index: 1000;
+        }
+        .nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #A1A1A6; font-size: 10px; font-weight: 600; }
+        .nav-item.active { color: var(--apple-red); }
 
-  const updateCustomer = (updatedCust) => {
-    setCustomers(customers.map(c => c.id === updatedCust.id ? updatedCust : c));
-    setModal({ type: null, data: null });
-  };
+        .btn-primary { width: 100%; padding: 16px; background: var(--apple-red); color: white; border: none; border-radius: 18px; font-size: 17px; font-weight: 700; cursor: pointer; }
+        .btn-secondary { width: 100%; padding: 16px; background: #F2F2F7; color: var(--apple-text); border: none; border-radius: 18px; font-size: 17px; font-weight: 700; cursor: pointer; }
 
-  // --- 统计与图表计算 ---
-  const stats = useMemo(() => {
-    const sortedTxs = [...transactions].sort((a, b) => new Date(a.date) - new Date(b.date));
-    const totalAmount = transactions.reduce((s, t) => s + Number(t.amount || 0), 0);
-    
-    // 业务构成 (饼图数据)
-    const composition = B_TYPES.map(type => ({
-      name: type,
-      value: transactions.filter(t => t.bType === type).reduce((s, t) => s + Number(t.amount || 0), 0)
-    })).filter(item => item.value > 0);
+        /* 弹窗 */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.45);
+            backdrop-filter: blur(8px);
+            z-index: 3000;
+            display: none;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        .modal-content {
+            background: #FFFFFF;
+            width: 100%;
+            max-width: 500px;
+            border-radius: 40px 40px 0 0;
+            padding: 24px;
+            padding-bottom: calc(32px + var(--safe-bottom));
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            max-height: 92vh;
+            overflow-y: auto;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-overlay.active .modal-content { transform: translateY(0); }
 
-    // 趋势数据 (折线图数据 - 按日期汇总)
-    const dailyTrend = {};
-    transactions.forEach(t => {
-      dailyTrend[t.date] = (dailyTrend[t.date] || 0) + Number(t.amount);
-    });
-    const trendPoints = Object.entries(dailyTrend)
-      .sort(([a], [b]) => new Date(a) - new Date(b))
-      .slice(-7); // 近7个有记录的日期
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+    </style>
+</head>
+<body>
 
-    return { totalAmount, composition, trendPoints };
-  }, [transactions]);
-
-  // --- 渲染小组件 ---
-  const CustomModal = () => {
-    if (!modal.type) return null;
-    return (
-      <div className="fixed inset-0 bg-black/60 z-[100] flex items-end sm:items-center justify-center p-4">
-        <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-          <div className="p-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold">
-                {modal.type.includes('Delete') ? '确认删除' : '编辑信息'}
-              </h3>
-              <button onClick={() => setModal({ type: null, data: null })} className="text-gray-400"><X /></button>
+    <!-- 登录注册页 -->
+    <div id="auth-screen">
+        <div class="auth-card">
+            <img src="https://images-eds-ssl.xboxlive.com/image?url=4rt9.lXDC4H_93laV1_eHHFT949fUipzkiFOBH3fAiZZUCdYojwUyX2aTonS1aIwMrx6NUIsHfUHSLzjGJFxxvtwvrt3JIhC0LNLrK_oJO8kh19fTjTSJb8vb7DjgYAi7LWZ0KeNOxyarooHGNzm8T0qE3e87NA38Ko.ME5t7Ag-&format=webp&h=210" 
+                 alt="HBC Logo" style="width: 64px; height: 64px; border-radius: 16px; margin-bottom: 20px;">
+            <h1 style="font-size: 28px; font-weight: 800; letter-spacing: 1px; color: #1D1D1F;">HBC-BORS</h1>
+            <p style="font-size: 14px; font-weight: 600; color: #48484A; margin-bottom: 30px;">湖北银行开门红业绩系统</p>
+            <div id="auth-box">
+                <input type="text" id="auth-empid" placeholder="员工工号" style="margin-bottom:12px; background:white;">
+                <input type="text" id="auth-name" placeholder="姓名" style="margin-bottom:12px; background:white;">
+                <input type="password" id="auth-pwd" placeholder="密码" style="margin-bottom:20px; background:white;">
+                <button class="btn-primary" onclick="handleAuth()">注册 / 登录</button>
             </div>
-            
-            {modal.type === 'confirmDeleteTx' && (
-              <p className="text-gray-500 mb-6">确定要删除这笔业务吗？此操作不可撤销。</p>
-            )}
-
-            {modal.type === 'confirmDeleteCust' && (
-              <p className="text-gray-500 mb-6">确定要删除该客户吗？删除客户将同时删除该客户下的所有业务记录！</p>
-            )}
-
-            {modal.type === 'editCust' && (
-              <div className="space-y-4">
-                <input className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.name} onChange={e => setModal({...modal, data: {...modal.data, name: e.target.value}})} placeholder="姓名" />
-                <input className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.phone} onChange={e => setModal({...modal, data: {...modal.data, phone: e.target.value}})} placeholder="手机号" />
-                <select className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.source} onChange={e => setModal({...modal, data: {...modal.data, source: e.target.value}})}>
-                  {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-            )}
-
-            {modal.type === 'editTx' && (
-              <div className="space-y-4">
-                <select className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.bType} onChange={e => setModal({...modal, data: {...modal.data, bType: e.target.value}})}>
-                  {B_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
-                <input type="number" className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.amount} onChange={e => setModal({...modal, data: {...modal.data, amount: e.target.value}})} placeholder="金额(万元)" />
-                <input type="date" className="w-full bg-gray-50 p-3 rounded-xl" value={modal.data.date} onChange={e => setModal({...modal, data: {...modal.data, date: e.target.value}})} />
-              </div>
-            )}
-
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => setModal({ type: null, data: null })} className="flex-1 py-3 bg-gray-100 rounded-xl font-bold">取消</button>
-              <button 
-                onClick={() => {
-                  if (modal.type === 'confirmDeleteTx') deleteTransaction(modal.data.id);
-                  if (modal.type === 'confirmDeleteCust') deleteCustomer(modal.data.id);
-                  if (modal.type === 'editCust') updateCustomer(modal.data);
-                  if (modal.type === 'editTx') updateTransaction(modal.data);
-                }} 
-                className={`flex-1 py-3 rounded-xl font-bold text-white ${modal.type.includes('Delete') ? 'bg-red-600' : 'bg-slate-800'}`}
-              >
-                确定
-              </button>
-            </div>
-          </div>
         </div>
-      </div>
-    );
-  };
-
-  // --- 登录/注册 视图 ---
-  if (!currentUser) {
-    return (
-      <div className="min-h-screen bg-red-600 flex items-center justify-center p-6">
-        <div className="w-full max-w-sm bg-white rounded-[40px] shadow-2xl p-8 space-y-8 animate-in zoom-in duration-300">
-          <div className="text-center space-y-2">
-            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600 mx-auto mb-4">
-              <TrendingUp size={32} />
-            </div>
-            <h1 className="text-2xl font-black text-slate-800">湖银 BORS 系统</h1>
-            <p className="text-gray-400 text-sm">{authMode === 'login' ? '请验证您的工号与姓名' : '开启您的业绩台账助手'}</p>
-          </div>
-
-          <div className="space-y-4">
-            <input 
-              type="text" placeholder="员工工号" 
-              className="w-full bg-slate-50 border-none rounded-2xl p-4 focus:ring-2 ring-red-500 transition-all"
-              value={authForm.empId} onChange={e => setAuthForm({...authForm, empId: e.target.value})}
-            />
-            <input 
-              type="text" placeholder="姓名" 
-              className="w-full bg-slate-50 border-none rounded-2xl p-4 focus:ring-2 ring-red-500 transition-all"
-              value={authForm.name} onChange={e => setAuthForm({...authForm, name: e.target.value})}
-            />
-            <input 
-              type="password" placeholder="登录密码" 
-              className="w-full bg-slate-50 border-none rounded-2xl p-4 focus:ring-2 ring-red-500 transition-all"
-              value={authForm.password} onChange={e => setAuthForm({...authForm, password: e.target.value})}
-            />
-          </div>
-
-          <button 
-            onClick={authMode === 'login' ? handleLogin : handleRegister}
-            className="w-full bg-red-600 text-white font-black py-4 rounded-2xl shadow-lg shadow-red-200 active:scale-95 transition-all"
-          >
-            {authMode === 'login' ? '立即登录' : '提交注册'}
-          </button>
-
-          <div className="text-center">
-            <button 
-              onClick={() => setAuthMode(authMode === 'login' ? 'register' : 'login')}
-              className="text-gray-400 text-sm font-bold hover:text-red-600"
-            >
-              {authMode === 'login' ? '没有账号？去注册' : '已有账号？去登录'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- 主应用视图 ---
-  return (
-    <div className="min-h-screen bg-[#F8F9FA] pb-24 select-none">
-      <CustomModal />
-      
-      {/* 顶部导航 */}
-      <header className="bg-white border-b border-gray-100 px-6 py-4 sticky top-0 z-40 flex justify-between items-center">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-red-600 rounded-lg flex items-center justify-center text-white font-bold">湖</div>
-          <h1 className="font-black text-slate-800">湖银开门红 BORS</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="text-right">
-            <p className="text-xs font-bold text-slate-800">{currentUser.name}</p>
-            <p className="text-[10px] text-gray-400">{currentUser.empId}</p>
-          </div>
-          <button onClick={handleLogout} className="text-gray-400 hover:text-red-600"><LogOut size={20}/></button>
-        </div>
-      </header>
-
-      <main className="p-4 md:p-6 max-w-2xl mx-auto">
-        {/* 1. 可视化看板 */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6 animate-in fade-in duration-500">
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-wider mb-1">累计揽储业绩</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-4xl font-black text-red-600">{stats.totalAmount.toLocaleString()}</span>
-                <span className="text-sm font-bold text-gray-400">万元</span>
-              </div>
-            </div>
-
-            {/* 业绩趋势图 (SVG) */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <TrendingUp size={18} className="text-red-600" /> 业绩走势图 (万元)
-              </h3>
-              <div className="h-40 w-full relative">
-                {stats.trendPoints.length > 1 ? (
-                  <svg className="w-full h-full overflow-visible">
-                    {/* 网格线 */}
-                    {[0, 25, 50, 75, 100].map(p => (
-                      <line key={p} x1="0" y1={`${p}%`} x2="100%" y2={`${p}%`} stroke="#f1f5f9" strokeWidth="1" />
-                    ))}
-                    {/* 折线 */}
-                    <path
-                      d={`M ${stats.trendPoints.map((p, i) => `${(i / (stats.trendPoints.length - 1)) * 100}%,${100 - (p[1] / Math.max(...stats.trendPoints.map(v => v[1]), 1)) * 100}%`).join(' L ')}`}
-                      fill="none" stroke="#dc2626" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"
-                    />
-                    {/* 数据点 */}
-                    {stats.trendPoints.map((p, i) => (
-                      <g key={i}>
-                        <circle 
-                          cx={`${(i / (stats.trendPoints.length - 1)) * 100}%`} 
-                          cy={`${100 - (p[1] / Math.max(...stats.trendPoints.map(v => v[1]), 1)) * 100}%`} 
-                          r="4" fill="white" stroke="#dc2626" strokeWidth="2" 
-                        />
-                        <text 
-                          x={`${(i / (stats.trendPoints.length - 1)) * 100}%`} 
-                          y="100%" dy="15" textAnchor="middle" className="text-[8px] fill-gray-400 font-medium"
-                        >{p[0].slice(5)}</text>
-                      </g>
-                    ))}
-                  </svg>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-gray-300 text-xs">数据不足，暂无法生成走势</div>
-                )}
-              </div>
-            </div>
-
-            {/* 业务构成图 (SVG 饼图) */}
-            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
-              <h3 className="text-sm font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <PieIcon size={18} className="text-red-600" /> 业务构成分析
-              </h3>
-              <div className="flex flex-col md:flex-row items-center gap-8">
-                <div className="relative w-32 h-32">
-                  <svg viewBox="0 0 32 32" className="w-full h-full transform -rotate-90">
-                    {stats.composition.length > 0 ? (
-                      stats.composition.reduce((acc, curr, i) => {
-                        const total = stats.totalAmount;
-                        const percentage = (curr.value / total) * 100;
-                        const offset = acc.offset;
-                        acc.elements.push(
-                          <circle key={i} r="16" cx="16" cy="16" fill="transparent"
-                            stroke={["#dc2626", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6"][i % 5]}
-                            strokeWidth="32" strokeDasharray={`${percentage} 100`} strokeDashoffset={-offset}
-                          />
-                        );
-                        acc.offset += percentage;
-                        return acc;
-                      }, { offset: 0, elements: [] }).elements
-                    ) : (
-                      <circle r="16" cx="16" cy="16" fill="#f1f5f9" />
-                    )}
-                  </svg>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 bg-white rounded-full"></div>
-                  </div>
-                </div>
-                <div className="flex-1 grid grid-cols-2 gap-y-3">
-                  {stats.composition.map((item, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: ["#dc2626", "#f59e0b", "#3b82f6", "#10b981", "#8b5cf6"][i % 5] }}></div>
-                      <span className="text-[10px] font-bold text-slate-600 truncate">{item.name}</span>
-                    </div>
-                  ))}
-                  {stats.composition.length === 0 && <p className="text-gray-300 text-xs italic">暂无构成数据</p>}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 2. 业务中心 (全部业务明细) */}
-        {activeTab === 'biz_center' && (
-          <div className="space-y-4 animate-in slide-in-from-right duration-300">
-            <h2 className="text-xl font-black px-1">业务明细中心</h2>
-            {transactions.slice().reverse().map(t => {
-              const cust = customers.find(c => c.id === t.customerId);
-              return (
-                <div key={t.id} className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100">
-                  <div className="flex justify-between items-start mb-4">
-                    <div>
-                      <span className="text-[10px] font-black px-2 py-0.5 bg-red-50 text-red-600 rounded-full uppercase border border-red-100">{t.bType}</span>
-                      <p className="text-lg font-black mt-2 text-slate-800">{cust?.name || '未知客户'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-black text-red-600">{t.amount}<span className="text-xs ml-0.5">万</span></p>
-                      <p className="text-[10px] text-gray-400 font-medium">{t.date}</p>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center pt-4 border-t border-dashed border-gray-100">
-                    <p className="text-xs text-gray-400 italic flex-1 truncate mr-4">{t.note || '无备注'}</p>
-                    <div className="flex gap-2">
-                      <button onClick={() => setModal({ type: 'editTx', data: {...t} })} className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:text-blue-600"><Edit3 size={14}/></button>
-                      <button onClick={() => setModal({ type: 'confirmDeleteTx', data: t })} className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center text-red-300 hover:text-red-600"><Trash2 size={14}/></button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            {transactions.length === 0 && <div className="text-center py-20 text-gray-400">暂无业务，点击录入开启第一单</div>}
-          </div>
-        )}
-
-        {/* 3. 业务录入 */}
-        {activeTab === 'add' && (
-          <div className="bg-white rounded-[40px] p-8 shadow-sm animate-in slide-in-from-bottom duration-300">
-            <h2 className="text-xl font-black mb-8">新增业务登记</h2>
-            <div className="space-y-6">
-              <div className="space-y-2">
-                <label className="text-xs font-black text-slate-400 uppercase ml-2">客户关联</label>
-                <select 
-                  className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold"
-                  value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})}
-                >
-                  <option value="">点击搜索并选择客户</option>
-                  {customers.map(c => <option key={c.id} value={c.id}>{c.name} ({c.phone})</option>)}
-                </select>
-                {customers.length === 0 && <p className="text-[10px] text-red-500 ml-2" onClick={() => setActiveTab('cust')}>请先添加客户档案</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase ml-2">业务类型</label>
-                  <select className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold" value={formData.bType} onChange={e => setFormData({...formData, bType: e.target.value})}>
-                    {B_TYPES.map(bt => <option key={bt} value={bt}>{bt}</option>)}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-400 uppercase ml-2">金额(万元)</label>
-                  <input type="number" placeholder="0.00" className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-red-600" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-black text-slate-400 uppercase ml-2">办理日期</label>
-                <input type="date" className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-xs font-black text-slate-400 uppercase ml-2">备注说明</label>
-                <textarea rows="2" className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm" value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})} placeholder="输入业务背景..."></textarea>
-              </div>
-
-              <button 
-                onClick={() => {
-                  if(!formData.customerId || !formData.amount) return alert('信息不完整');
-                  setTransactions([...transactions, { ...formData, id: Date.now() }]);
-                  setFormData({...formData, amount: '', note: ''});
-                  setActiveTab('biz_center');
-                }}
-                className="w-full bg-red-600 text-white font-black py-5 rounded-3xl shadow-lg shadow-red-100 active:scale-95 transition-all mt-4"
-              >
-                完成录入
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* 4. 客户管理 */}
-        {activeTab === 'cust' && (
-          <div className="space-y-6 animate-in slide-in-from-left duration-300">
-            <div className="bg-white rounded-[40px] p-8 shadow-sm">
-              <h2 className="text-lg font-black mb-6">新增客户档案</h2>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <input type="text" placeholder="客户姓名" className="bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold" value={custForm.name} onChange={e => setCustForm({...custForm, name: e.target.value})} />
-                <input type="tel" placeholder="手机号" className="bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold" value={custForm.phone} onChange={e => setCustForm({...custForm, phone: e.target.value})} />
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <input type="text" placeholder="核心客户号" className="bg-slate-50 border-none rounded-2xl p-4 text-sm" value={custForm.custId} onChange={e => setCustForm({...custForm, custId: e.target.value})} />
-                <select className="bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold" value={custForm.source} onChange={e => setCustForm({...custForm, source: e.target.value})}>
-                  {SOURCES.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <button 
-                onClick={() => {
-                  if(!custForm.name || !custForm.phone) return alert('信息不完整');
-                  setCustomers([...customers, { ...custForm, id: 'C' + Date.now() }]);
-                  setCustForm({ name: '', phone: '', custId: '', source: '发单新客' });
-                }}
-                className="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-lg"
-              >
-                保存档案
-              </button>
-            </div>
-
-            <div className="px-2">
-              <h3 className="font-black text-slate-800 mb-4">存量客户 ({customers.length})</h3>
-              <div className="space-y-3">
-                {customers.map(c => (
-                  <div key={c.id} className="bg-white p-4 rounded-3xl flex items-center justify-between shadow-sm border border-gray-100">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 uppercase font-black">{c.name[0]}</div>
-                      <div>
-                        <p className="font-black text-slate-800">{c.name}</p>
-                        <p className="text-[10px] text-gray-400 font-medium">{c.phone} | {c.source}</p>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button onClick={() => setModal({ type: 'editCust', data: {...c} })} className="p-2 text-slate-300 hover:text-blue-500"><Edit3 size={16}/></button>
-                      <button onClick={() => setModal({ type: 'confirmDeleteCust', data: c })} className="p-2 text-slate-300 hover:text-red-500"><Trash2 size={16}/></button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 5. 设置/数据导出 */}
-        {activeTab === 'more' && (
-          <div className="space-y-4">
-            <div className="bg-white rounded-[40px] p-8 shadow-sm">
-              <div className="flex items-center gap-4 mb-8">
-                <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center text-red-600">
-                  <User size={32} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-black text-slate-800">{currentUser.name}</h2>
-                  <p className="text-xs text-gray-400 font-bold uppercase tracking-wider">员工工号: {currentUser.empId}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button 
-                  onClick={() => {
-                    let csv = "\ufeff日期,客户姓名,业务类型,金额(万元),备注\n";
-                    transactions.forEach(t => {
-                      csv += `${t.date},${customers.find(c => c.id === t.customerId)?.name || '未知'},${t.bType},${t.amount},${t.note}\n`;
-                    });
-                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = `业务明细_${new Date().toLocaleDateString()}.csv`; a.click();
-                  }}
-                  className="w-full p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-slate-100 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <Download size={18} className="text-blue-500" />
-                    <span className="text-sm font-bold text-slate-700">导出 CSV 报表</span>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-300" />
-                </button>
-
-                <button 
-                   onClick={() => {
-                    const data = JSON.stringify({ users, customers, transactions }, null, 2);
-                    const blob = new Blob([data], { type: 'application/json' });
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a'); a.href = url; a.download = `BORS备份_${new Date().toLocaleDateString()}.json`; a.click();
-                  }}
-                  className="w-full p-4 bg-slate-50 rounded-2xl flex items-center justify-between group hover:bg-slate-100 transition-all"
-                >
-                  <div className="flex items-center gap-3">
-                    <Upload size={18} className="text-purple-500" />
-                    <span className="text-sm font-bold text-slate-700">全量 JSON 备份</span>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-300" />
-                </button>
-              </div>
-
-              <div className="mt-12 text-center space-y-2 opacity-20">
-                <p className="text-[10px] font-black uppercase tracking-[0.2em]">Huyin BORS Pro</p>
-                <p className="text-[10px] font-medium">Version 3.0.1 Stable</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-
-      {/* 底部导航栏 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t border-gray-100 h-20 px-4 pb-safe flex justify-around items-center z-50">
-        {[
-          { id: 'dashboard', label: '看板', icon: LayoutDashboard },
-          { id: 'biz_center', label: '业务', icon: ListOrdered },
-          { id: 'add', label: '录入', icon: PlusSquare },
-          { id: 'cust', label: '客户', icon: Users },
-          { id: 'more', label: '我的', icon: Settings },
-        ].map(tab => (
-          <button 
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-col items-center justify-center w-full transition-all ${activeTab === tab.id ? 'text-red-600 scale-110' : 'text-slate-300'}`}
-          >
-            <tab.icon size={22} strokeWidth={activeTab === tab.id ? 3 : 2} />
-            <span className="text-[10px] mt-1 font-black">{tab.label}</span>
-          </button>
-        ))}
-      </nav>
     </div>
-  );
-};
 
-export default App;
+    <!-- 主界面 -->
+    <div id="app-container" style="display:none; opacity:0;">
+        <header>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="https://images-eds-ssl.xboxlive.com/image?url=4rt9.lXDC4H_93laV1_eHHFT949fUipzkiFOBH3fAiZZUCdYojwUyX2aTonS1aIwMrx6NUIsHfUHSLzjGJFxxvtwvrt3JIhC0LNLrK_oJO8kh19fTjTSJb8vb7DjgYAi7LWZ0KeNOxyarooHGNzm8T0qE3e87NA38Ko.ME5t7Ag-&format=webp&h=210" 
+                     alt="Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
+                <div>
+                    <h2 style="font-size: 15px; font-weight: 800;">湖北银行开门红业绩系统</h2>
+                    <p style="font-size: 9px; color: var(--apple-gray); font-weight: 800; letter-spacing: 0.5px;">HBC-BORS</p>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="text-align: right;">
+                    <p id="user-display-name" style="font-size: 13px; font-weight: 700;"></p>
+                    <button onclick="logout()" style="border:none; background:none; color: var(--apple-red); font-size: 10px; font-weight: 700;">退出登录</button>
+                </div>
+                <div style="width: 36px; height: 36px; background: #E5E5EA; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #8E8E93;">
+                    <i data-lucide="user-circle" size="24"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- 看板 -->
+        <section id="screen-dashboard" class="screen active">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                <div class="card" style="padding:20px; margin:0;"><span style="font-size:11px; font-weight:700; color:var(--apple-gray);">累计业绩 (万)</span><div id="stat-total" style="font-size:24px; font-weight:800; color:var(--apple-red);">0.00</div></div>
+                <div class="card" style="padding:20px; margin:0;"><span style="font-size:11px; font-weight:700; color:var(--apple-gray);">今日新增 (万)</span><div id="stat-today" style="font-size:24px; font-weight:800; color:var(--apple-red);">0.00</div></div>
+            </div>
+            <div class="card">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h3 style="font-size:15px; font-weight:700;">业绩趋势</h3>
+                    <div style="display:flex; gap:6px;">
+                        <input type="date" id="trend-start" style="padding:6px; font-size:10px; width:auto;" onchange="initTrendChart()">
+                        <input type="date" id="trend-end" style="padding:6px; font-size:10px; width:auto;" onchange="initTrendChart()">
+                    </div>
+                </div>
+                <div style="height: 220px;"><canvas id="trendChart"></canvas></div>
+            </div>
+            <div class="card"><h3 style="font-size:15px; font-weight:700; margin-bottom:20px;">资产配置分布</h3><div style="height: 200px;"><canvas id="typeChart"></canvas></div></div>
+        </section>
+
+        <!-- 业务明细 -->
+        <section id="screen-biz" class="screen">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                <h2 style="font-size: 24px; font-weight: 800;">业务明细</h2>
+                <div style="display:flex; gap:6px;"><input type="date" id="biz-start" style="padding:6px; font-size:10px; width:auto;" onchange="renderBizList()"><input type="date" id="biz-end" style="padding:6px; font-size:10px; width:auto;" onchange="renderBizList()"></div>
+            </div>
+            <div id="biz-list-container"></div>
+        </section>
+
+        <!-- 业务录入 -->
+        <section id="screen-add" class="screen">
+            <div class="card">
+                <h2 style="font-size: 20px; font-weight: 800; margin-bottom: 24px;">新业务录入</h2>
+                <div class="input-group" style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:var(--apple-gray); margin-left:4px;">选择客户</span><select id="form-cust-id"></select></div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <div class="input-group"><span style="font-size:11px; font-weight:700; color:var(--apple-gray); margin-left:4px;">业务品种</span><select id="form-type">
+                        <option>1年定期存款</option><option>2年定期存款</option><option>3年定期存款</option><option>5年定期存款</option>
+                        <option>理财产品</option><option>1天通知存款</option><option>7天通知存款</option>
+                    </select></div>
+                    <div class="input-group"><span style="font-size:11px; font-weight:700; color:var(--apple-gray); margin-left:4px;">业务性质</span><select id="form-nature"><option>新增</option><option>转存</option></select></div>
+                </div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:12px;">
+                    <div class="input-group"><span style="font-size:11px; font-weight:700; color:var(--apple-gray); margin-left:4px;">金额 (万)</span><input type="number" id="form-amount" placeholder="0.00"></div>
+                    <div class="input-group"><span style="font-size:11px; font-weight:700; color:var(--apple-gray); margin-left:4px;">办理日期</span><input type="date" id="form-date"></div>
+                </div>
+                <button class="btn-primary" onclick="submitTransaction()">确认录入业绩</button>
+            </div>
+        </section>
+
+        <!-- 客户管理 -->
+        <section id="screen-cust" class="screen">
+            <div class="card colorful-card">
+                <h2 style="font-size: 18px; font-weight: 800; margin-bottom: 20px;">快速新增客户</h2>
+                <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:10px;"><input type="text" id="cust-name" placeholder="客户姓名"><select id="cust-gender"><option value="">性别</option><option>男</option><option>女</option></select></div>
+                <div style="display:grid; grid-template-columns: 1fr; gap:10px; margin-bottom:10px;"><input type="text" id="cust-idcard" placeholder="身份证号"></div>
+                <div style="display:grid; grid-template-columns: 1fr; gap:10px; margin-bottom:20px;"><input type="text" id="cust-code" placeholder="客户号"></div>
+                <button class="btn-primary" onclick="submitCustomer()" style="background: white; color: #1D1D1F;">保存档案</button>
+            </div>
+            <div id="cust-list-container"></div>
+        </section>
+
+        <!-- 系统工具 -->
+        <section id="screen-more" class="screen">
+            <div class="card">
+                <h3 style="font-size:17px; font-weight:800; margin-bottom:20px;">操作指南与说明</h3>
+                <div class="list-item" onclick="openGuide()" style="padding:16px 0; border-bottom:0.5px solid var(--apple-sep); display:flex; justify-content:space-between; align-items:center; cursor:pointer;"><div style="display:flex; align-items:center; gap:12px;"><i data-lucide="book-open" size="20"></i><span style="font-weight:600;">系统使用指南</span></div><i data-lucide="chevron-right" size="18" color="#CCC"></i></div>
+                <div class="list-item" onclick="openAbout()" style="padding:16px 0; border-bottom:0.5px solid var(--apple-sep); display:flex; justify-content:space-between; align-items:center; cursor:pointer;"><div style="display:flex; align-items:center; gap:12px;"><i data-lucide="info" size="20"></i><span style="font-weight:600;">关于 HBC-BORS</span></div><i data-lucide="chevron-right" size="18" color="#CCC"></i></div>
+                <div class="list-item" onclick="exportCSV()" style="padding:16px 0; border-bottom:0.5px solid var(--apple-sep); display:flex; justify-content:space-between; align-items:center; cursor:pointer;"><div style="display:flex; align-items:center; gap:12px;"><i data-lucide="file-spreadsheet" size="20"></i><span style="font-weight:600;">导出 CSV 报表</span></div><i data-lucide="chevron-right" size="18" color="#CCC"></i></div>
+                <div class="list-item" onclick="exportJSON()" style="padding:16px 0; border-bottom:0.5px solid var(--apple-sep); display:flex; justify-content:space-between; align-items:center; cursor:pointer;"><div style="display:flex; align-items:center; gap:12px;"><i data-lucide="database" size="20"></i><span style="font-weight:600;">本地数据备份</span></div><i data-lucide="chevron-right" size="18" color="#CCC"></i></div>
+                <div class="list-item" onclick="triggerImport()" style="padding:16px 0; display:flex; justify-content:space-between; align-items:center; cursor:pointer;"><div style="display:flex; align-items:center; gap:12px;"><i data-lucide="upload-cloud" size="20"></i><span style="font-weight:600;">本地数据导入</span></div><input type="file" id="import-file" style="display:none" accept=".json" onchange="handleImport(event)"><i data-lucide="chevron-right" size="18" color="#CCC"></i></div>
+            </div>
+            <div style="text-align:center; padding:20px 0;"><p style="font-size:10px; color:#C7C7CC; margin-top:4px;">© 2026 黄修宇独立制作</p></div>
+        </section>
+
+        <!-- 悬浮通知 -->
+        <div id="notification-fab" onclick="toggleNotificationCenter()"><i data-lucide="bell" size="28"></i><span class="badge" id="noti-badge">0</span></div>
+
+        <!-- 底部导航 -->
+        <nav class="bottom-nav">
+            <div class="nav-item active" onclick="switchTab('dashboard', this)"><i data-lucide="layout-grid"></i><span>数据看板</span></div>
+            <div class="nav-item" onclick="switchTab('biz', this)"><i data-lucide="list"></i><span>业务明细</span></div>
+            <div class="nav-item" onclick="switchTab('add', this)"><i data-lucide="plus-circle" size="28"></i><span>业务录入</span></div>
+            <div class="nav-item" onclick="switchTab('cust', this)"><i data-lucide="users"></i><span>客户管理</span></div>
+            <div class="nav-item" onclick="switchTab('more', this)"><i data-lucide="settings"></i><span>系统工具</span></div>
+        </nav>
+    </div>
+
+    <!-- 弹窗容器 -->
+    <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+        <div class="modal-content" id="modal-body"></div>
+    </div>
+
+    <script>
+        // --- 数据模型 ---
+        const today = new Date();
+        const formatDate = (d) => d.toISOString().split('T')[0];
+        const genRelativeDate = (days) => { let d = new Date(); d.setDate(d.getDate() + days); return formatDate(d); };
+
+        const EX_CUSTOMERS = [
+            { id: 'C1', name: '张建国', gender: '男', idCard: '4201061985' + genRelativeDate(3).replace(/-/g, '').slice(4) + '1234', custCode: 'HB001' }, // 3天后生日
+            { id: 'C2', name: '李晓丽', gender: '女', idCard: '420103199201014321', custCode: 'HB002' },
+            { id: 'C3', name: '王志伟', gender: '男', idCard: '4201111975' + genRelativeDate(0).replace(/-/g, '').slice(4) + '5678', custCode: 'HB003' } // 今天生日
+        ];
+
+        let users = JSON.parse(localStorage.getItem('hbc_v82_users') || '[]');
+        let customers = JSON.parse(localStorage.getItem('hbc_v82_customers') || JSON.stringify(EX_CUSTOMERS));
+        let transactions = JSON.parse(localStorage.getItem('hbc_v82_transactions') || '[]');
+        let currentUser = JSON.parse(localStorage.getItem('hbc_v82_session') || 'null');
+
+        let trendChart, typeChart;
+
+        window.onload = () => {
+            lucide.createIcons();
+            Chart.register(ChartDataLabels);
+            if (currentUser) showApp();
+            updateNotifications();
+            document.getElementById('form-date').valueAsDate = new Date();
+        };
+
+        // --- 核心逻辑 ---
+        function getExpiryDate(dateStr, bType) {
+            const date = new Date(dateStr);
+            let years = 0;
+            if (bType.includes('1年')) years = 1;
+            else if (bType.includes('2年')) years = 2;
+            else if (bType.includes('3年')) years = 3;
+            else if (bType.includes('5年')) years = 5;
+            if (years === 0) return null;
+            date.setFullYear(date.getFullYear() + years);
+            return formatDate(date);
+        }
+
+        function handleAuth() {
+            const empId = document.getElementById('auth-empid').value;
+            const name = document.getElementById('auth-name').value;
+            const pwd = document.getElementById('auth-pwd').value;
+            if(!empId || !name || !pwd) return alert('请填入工号、姓名及密码');
+            let user = users.find(u => u.empId === empId);
+            if(!user) {
+                user = { empId, name, password: pwd };
+                users.push(user);
+                localStorage.setItem('hbc_v82_users', JSON.stringify(users));
+            } else if(user.password !== pwd) return alert('密码验证失败');
+            currentUser = user;
+            localStorage.setItem('hbc_v82_session', JSON.stringify(user));
+            showApp();
+        }
+
+        function showApp() {
+            document.getElementById('auth-screen').style.transform = 'translateY(-100%)';
+            document.getElementById('app-container').style.display = 'block';
+            setTimeout(() => document.getElementById('app-container').style.opacity = '1', 100);
+            document.getElementById('user-display-name').innerText = currentUser.name;
+            renderDashboard();
+            updateFormSelectors();
+            renderCustList();
+        }
+
+        function logout() { localStorage.removeItem('hbc_v82_session'); location.reload(); }
+
+        function switchTab(id, el) {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById(`screen-${id}`).classList.add('active');
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            el.classList.add('active');
+            if(id === 'dashboard') renderDashboard();
+            if(id === 'biz') renderBizList();
+            if(id === 'cust') renderCustList();
+        }
+
+        function saveData() { 
+            localStorage.setItem('hbc_v82_customers', JSON.stringify(customers)); 
+            localStorage.setItem('hbc_v82_transactions', JSON.stringify(transactions)); 
+            updateNotifications();
+        }
+
+        // --- 智能通知 ---
+        function updateNotifications() {
+            const list = [];
+            const today = new Date();
+            
+            customers.forEach(c => {
+                if(!c.idCard || c.idCard.length < 14) return;
+                const bStr = c.idCard.slice(10, 14);
+                const bDate = new Date(`${today.getFullYear()}-${bStr.slice(0,2)}-${bStr.slice(2,4)}`);
+                const diff = Math.ceil((bDate - today) / 86400000);
+                if([0, 1, 3, 7].includes(diff)) list.push({ type: 'birthday', customerId: c.id, name: c.name, days: diff });
+            });
+
+            transactions.forEach(t => {
+                const exp = getExpiryDate(t.date, t.bType);
+                if(!exp) return;
+                const diff = Math.ceil((new Date(exp) - today) / 86400000);
+                if([0, 1, 3, 7].includes(diff)) list.push({ type: 'expiry', customerId: t.customerId, name: customers.find(c=>c.id===t.customerId)?.name, days: diff, bType: t.bType });
+            });
+
+            document.getElementById('noti-badge').innerText = list.length;
+            window.activeNotis = list;
+        }
+
+        function toggleNotificationCenter() {
+            const body = document.getElementById('modal-body');
+            const list = window.activeNotis || [];
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <h2 style="font-size:24px; font-weight:800; margin-bottom:20px;">智能通知中心</h2>
+                ${list.length === 0 ? '<p style="text-align:center; color:#CCC; padding:40px;">暂无即将到来的提醒</p>' : 
+                    list.map(n => `
+                    <div class="card" onclick="openCustDetail('${n.customerId}')" style="display:flex; align-items:center; gap:16px; margin-bottom:12px; border-left:4px solid ${n.type==='birthday'?'#FF9500':'#FF3B30'}; cursor:pointer;">
+                        <div style="flex:1;">
+                            <p style="font-weight:800; font-size:15px;">${n.name} - ${n.type==='birthday'?'客户生日':'存款到期'}</p>
+                            <p style="font-size:12px; color:#999;">${n.days===0?'今天':n.days+'天后'} ${n.type==='expiry'?'('+n.bType+')':''}</p>
+                        </div>
+                        <i data-lucide="chevron-right" size="18" color="#CCC"></i>
+                    </div>`).join('')}
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+            lucide.createIcons();
+        }
+
+        // --- 业务管理 ---
+        function submitTransaction() {
+            const tx = { id: Date.now(), customerId: document.getElementById('form-cust-id').value, bType: document.getElementById('form-type').value, amount: parseFloat(document.getElementById('form-amount').value || 0), date: document.getElementById('form-date').value, nature: document.getElementById('form-nature').value };
+            if(!tx.customerId || tx.amount <= 0) return alert('信息不全');
+            transactions.push(tx);
+            saveData();
+            switchTab('biz', document.querySelectorAll('.nav-item')[1]);
+        }
+
+        function renderBizList() {
+            const start = document.getElementById('biz-start').value;
+            const end = document.getElementById('biz-end').value;
+            let filtered = transactions;
+            if(start) filtered = filtered.filter(t => t.date >= start);
+            if(end) filtered = filtered.filter(t => t.date <= end);
+
+            const container = document.getElementById('biz-list-container');
+            container.innerHTML = filtered.slice().reverse().map(t => {
+                const c = customers.find(cust => cust.id === t.customerId);
+                const exp = getExpiryDate(t.date, t.bType);
+                return `<div class="card" onclick="openBizEdit('${t.id}')" style="cursor:pointer;">
+                    <div style="display:flex; justify-content:space-between; align-items:start;">
+                        <div>
+                            <span style="font-size:10px; background:#F2F2F7; padding:2px 10px; border-radius:100px; font-weight:700;">${t.nature} · ${t.bType}</span>
+                            <p style="font-weight:800; font-size:17px; margin-top:6px;">${c ? c.name : '未知'}</p>
+                            <p style="font-size:11px; color:#999; margin-top:4px;">办理日期: ${t.date}</p>
+                            ${exp ? `<p style="font-size:11px; color:var(--apple-red); font-weight:700;">到期日期: ${exp}</p>` : ''}
+                        </div>
+                        <p style="font-size:22px; font-weight:800; color:var(--apple-red);">${t.amount}<span style="font-size:11px;">万</span></p>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        function openBizEdit(id) {
+            const t = transactions.find(tx => tx.id == id);
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <h2 style="font-size:22px; font-weight:800; margin-bottom:24px;">编辑业务记录</h2>
+                <div class="input-group" style="margin-bottom:12px;"><span style="font-size:11px; font-weight:700; color:#999;">金额 (万)</span><input type="number" id="edit-tx-amount" value="${t.amount}"></div>
+                <div class="input-group" style="margin-bottom:24px;"><span style="font-size:11px; font-weight:700; color:#999;">办理日期</span><input type="date" id="edit-tx-date" value="${t.date}"></div>
+                <div style="display:flex; gap:12px;">
+                    <button class="btn-secondary" style="color:red; flex:1;" onclick="deleteBizConfirm(${id})">删除</button>
+                    <button class="btn-primary" style="flex:2;" onclick="saveBizEdit(${id})">保存修改</button>
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function saveBizEdit(id) {
+            const t = transactions.find(tx => tx.id == id);
+            t.amount = parseFloat(document.getElementById('edit-tx-amount').value);
+            t.date = document.getElementById('edit-tx-date').value;
+            saveData(); renderBizList(); closeModal();
+        }
+
+        function deleteBizConfirm(id) {
+            if (confirm('确定要删除这笔业务业绩吗？此操作不可恢复。')) {
+                transactions = transactions.filter(t => t.id != id);
+                saveData(); renderBizList(); closeModal();
+            }
+        }
+
+        // --- 客户管理 ---
+        function submitCustomer() {
+            const name = document.getElementById('cust-name').value;
+            if(!name) return alert('姓名不能为空');
+            customers.push({ id: 'C' + Date.now(), name, gender: document.getElementById('cust-gender').value, idCard: document.getElementById('cust-idcard').value, custCode: document.getElementById('cust-code').value });
+            saveData(); updateFormSelectors(); renderCustList(); alert('档案已建立');
+        }
+
+        function renderCustList() {
+            const container = document.getElementById('cust-list-container');
+            container.innerHTML = customers.slice().reverse().map(c => `
+                <div class="card" onclick="openCustDetail('${c.id}')" style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+                    <div><p style="font-weight:700; font-size:17px;">${c.name}</p><p style="font-size:12px; color:#999;">${c.custCode || '无客户号'}</p></div>
+                    <i data-lucide="chevron-right" size="20" color="#CCC"></i>
+                </div>`).join('');
+            lucide.createIcons();
+        }
+
+        function openCustDetail(id) {
+            const c = customers.find(cust => cust.id === id);
+            const myTxs = transactions.filter(t => t.customerId === id);
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+                    <h2 style="font-size:26px; font-weight:800;">${c.name}</h2>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="editCust('${c.id}')" style="background:#F2F2F7; border:none; padding:8px; border-radius:12px; cursor:pointer;"><i data-lucide="edit-3" size="18"></i></button>
+                        <button onclick="deleteCustConfirm('${c.id}')" style="background:#F2F2F7; border:none; padding:8px; border-radius:12px; color:red; cursor:pointer;"><i data-lucide="user-minus" size="18"></i></button>
+                    </div>
+                </div>
+                <div style="background:#F2F2F7; padding:20px; border-radius:28px; margin-bottom:24px;">
+                    <p style="font-size:11px; color:#999; font-weight:700;">性别: <b>${c.gender || '--'}</b></p>
+                    <p style="font-size:11px; color:#999; font-weight:700; margin-top:8px;">身份证号: <b>${c.idCard || '--'}</b></p>
+                    <p style="font-size:11px; color:#999; font-weight:700; margin-top:8px;">客户号: <b>${c.custCode || '--'}</b></p>
+                </div>
+                <h3 style="font-size:16px; font-weight:800; margin-bottom:12px;">名下业务</h3>
+                ${myTxs.length > 0 ? myTxs.map(t => `<div style="padding:14px 0; border-bottom:0.5px solid #EEE; display:flex; justify-content:space-between;"><div><p style="font-size:14px; font-weight:700;">${t.bType}</p><p style="font-size:10px; color:#999;">${t.date}</p></div><p style="font-weight:800; color:var(--apple-red);">${t.amount}万</p></div>`).join('') : '<p style="text-align:center; color:#CCC; padding:20px;">暂无办理记录</p>'}
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+            lucide.createIcons();
+        }
+
+        function editCust(id) {
+            const c = customers.find(cust => cust.id === id);
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <h2 style="font-size:22px; font-weight:800; margin-bottom:24px;">修改客户资料</h2>
+                <div class="input-group" style="margin-bottom:12px;"><input type="text" id="edit-c-name" value="${c.name}" placeholder="姓名"></div>
+                <div class="input-group" style="margin-bottom:12px;"><input type="text" id="edit-c-code" value="${c.custCode}" placeholder="客户号"></div>
+                <div class="input-group" style="margin-bottom:24px;"><input type="text" id="edit-c-id" value="${c.idCard}" placeholder="身份证号"></div>
+                <button class="btn-primary" onclick="saveCustEdit('${id}')">保存修改</button>
+            `;
+        }
+
+        function saveCustEdit(id) {
+            const c = customers.find(cust => cust.id === id);
+            c.name = document.getElementById('edit-c-name').value;
+            c.custCode = document.getElementById('edit-c-code').value;
+            c.idCard = document.getElementById('edit-c-id').value;
+            saveData(); renderCustList(); closeModal();
+        }
+
+        function deleteCustConfirm(id) {
+            if(confirm('警告：注销客户将同步清空其名下所有业绩明细，确定注销？')) {
+                customers = customers.filter(c => c.id !== id);
+                transactions = transactions.filter(t => t.customerId !== id);
+                saveData(); renderCustList(); closeModal();
+            }
+        }
+
+        // --- 系统设置与说明 ---
+        function openGuide() {
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <h2 style="font-size:24px; font-weight:800; margin-bottom:20px;">系统使用指南</h2>
+                <div style="font-size:14px; line-height:1.8; color:#48484A;">
+                    <p><b>1. 客户管理：</b>在“客户管理”页建立档案。存入姓名、手机、身份证等信息后，系统将自动识别生日并进行提醒。</p>
+                    <p><b>2. 业务录入：</b>在“业务录入”页选择客户。录入金额和产品类型（如定期存款）。定期产品录入后，系统会自动计算到期日并在主界面实时提醒。</p>
+                    <p><b>3. 智能通知：</b>右下角悬浮铃标提供“生日”和“到期”通知。点击任意提醒项即可直接进入该客户的详细档案。</p>
+                    <p><b>4. 数据管理：</b>“系统工具”页提供一键导出 CSV 报表和 JSON 本地数据备份功能，确保存档安全。</p>
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        function openAbout() {
+            const body = document.getElementById('modal-body');
+            body.innerHTML = `
+                <div style="width: 40px; height: 5px; background: #EEE; border-radius: 10px; margin: 0 auto 20px;"></div>
+                <div style="text-align:center; padding:10px;">
+                    <img src="https://images-eds-ssl.xboxlive.com/image?url=4rt9.lXDC4H_93laV1_eHHFT949fUipzkiFOBH3fAiZZUCdYojwUyX2aTonS1aIwMrx6NUIsHfUHSLzjGJFxxvtwvrt3JIhC0LNLrK_oJO8kh19fTjTSJb8vb7DjgYAi7LWZ0KeNOxyarooHGNzm8T0qE3e87NA38Ko.ME5t7Ag-&format=webp&h=210" style="width:70px; height:70px; border-radius:18px; margin-bottom:12px;">
+                    <h2 style="font-size:22px; font-weight:800;">HBC-BORS</h2>
+                    <p style="font-size:12px; color:#999; margin-bottom:32px;">湖北银行开门红数字化台账中心</p>
+                </div>
+                <div style="background:#F2F2F7; padding:20px; border-radius:28px;">
+                    <p style="font-size:13px; color:#666;">采用边缘加密存储。所有数据均保存在本地环境，不经过任何外部服务器，全方位保障银行业务与客户资料的安全私密。</p>
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.add('active');
+        }
+
+        // --- 工具函数 ---
+        function renderDashboard() {
+            const total = transactions.reduce((s,t)=>s+t.amount,0);
+            document.getElementById('stat-total').innerText = total.toFixed(2);
+            initTrendChart(); initTypeChart();
+        }
+        function initTrendChart() {
+            const ctx = document.getElementById('trendChart').getContext('2d');
+            const daily = {}; transactions.forEach(t => daily[t.date] = (daily[t.date] || 0) + t.amount);
+            if(trendChart) trendChart.destroy();
+            trendChart = new Chart(ctx, { type: 'line', data: { labels: Object.keys(daily), datasets: [{ data: Object.values(daily), borderColor: '#FF3B30', backgroundColor: 'rgba(255, 59, 48, 0.05)', fill: true, tension: 0.4 }] }, options: { plugins: { legend: { display: false }, datalabels: { align: 'top', color: '#FF3B30' } }, scales: { y: { display: false }, x: { grid: { display: false } } }, maintainAspectRatio: false } });
+        }
+        function initTypeChart() {
+            const ctx = document.getElementById('typeChart').getContext('2d');
+            const types = {}; transactions.forEach(t => types[t.bType] = (types[t.bType] || 0) + t.amount);
+            if(typeChart) typeChart.destroy();
+            typeChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(types), datasets: [{ data: Object.values(types), backgroundColor: ['#FF3B30','#FF9500','#007AFF','#34C759','#AF52DE'] }] }, options: { cutout: '75%', plugins: { legend: { position: 'right' } }, maintainAspectRatio: false } });
+        }
+        function updateFormSelectors() { document.getElementById('form-cust-id').innerHTML = '<option value="">点击选择客户</option>' + customers.map(c => `<option value="${c.id}">${c.name}</option>`).join(''); }
+        function closeModal(e) { if(e && e.target.id !== 'modal-overlay') return; document.getElementById('modal-overlay').classList.remove('active'); }
+        function exportCSV() {
+            let csv = "\ufeff办理日期,客户,品种,金额(万)\n";
+            transactions.forEach(t => { const c = customers.find(cust => cust.id === t.customerId); csv += `${t.date},${c ? c.name : '未知'},${t.bType},${t.amount}\n`; });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'HBC_Performance.csv'; a.click();
+        }
+        function exportJSON() {
+            const data = { customers, transactions };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `HBC_BACKUP_${Date.now()}.json`; a.click();
+        }
+        function triggerImport() { document.getElementById('import-file').click(); }
+        function handleImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                try {
+                    const data = JSON.parse(ev.target.result);
+                    if (data.customers && data.transactions) {
+                        if(confirm('导入将覆盖当前所有数据，是否继续？')) {
+                            customers = data.customers; transactions = data.transactions; saveData(); location.reload();
+                        }
+                    }
+                } catch (err) { alert('导入失败，文件格式错误'); }
+            };
+            reader.readAsText(file);
+        }
+    </script>
+</body>
+</html>
 
